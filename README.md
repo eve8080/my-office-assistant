@@ -193,12 +193,15 @@ npm run validate:infra
 npm run deploy
 ```
 
-**Not yet verified against the live stack.** The following are part of post-deployment verification:
+**Post-deployment verification (2026-09-28, checked against the live stack).**
 
-- **Missing notebooks read as 404.** The currently deployed stack answers `403` for them; after this template is deployed they should answer `404` through CloudFront.
-- **Direct S3 access is still blocked.** Direct requests to the bucket should still return `403`.
-- **S3 honours the conditional writes.** CloudFront should forward `If-Match` and `If-None-Match`, and S3 should reject a mismatched write with `412`.
-- **First-run creation works on both stacks.** Before the policy update, the app's create-only resolution of an ambiguous `403` should still create a new notebook.
+- **Missing notebooks read as 404.** Confirmed: a request for a notebook that does not exist returns `404 NoSuchKey` through CloudFront. It returned `403` before this template was deployed.
+- **Direct S3 access is still blocked.** Confirmed: a direct request to the bucket still returns `403`.
+- **S3 honours the conditional writes.** Confirmed: creating with `If-None-Match: *` returns `200`, repeating the same create returns `412 PreconditionFailed`, a matching `If-Match` returns `200` and a stale one returns `412`. CloudFront forwards both headers, and the read response carries the object `ETag`.
+- **`/sync/*` responses are inert and uncacheable.** Confirmed live: `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and `Cache-Control: no-store, max-age=0`.
+- **Request validation.** Confirmed live: an invalid object path returns `400`, `DELETE` returns `405` and a `PUT` that is not `application/json` returns `415` before reaching S3.
+- **First-run creation works in both states.** The app's create-only resolution of an ambiguous `403` is covered by `npm run test:guards`, so a first notebook can be created whether or not the policy update is deployed.
+- **Live two-browser encrypted sync** passes against the deployed site (`APP_URL=... npm run test:live`), and all seven mocked browser suites pass against the deployed build.
 
 The deploy script:
 
@@ -212,3 +215,7 @@ The deploy script:
 ## Planned extension path
 
 Future office-assistant modules can continue using the same CloudFront domain. Features requiring identity, sharing, server-side search or business logic should add company-approved authentication and a separate serverless API origin rather than weakening the encrypted notebook route.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
