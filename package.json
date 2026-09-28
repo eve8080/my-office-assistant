@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test",
     "test:e2e": "node e2e/run.mjs",
+    "test:sync": "node e2e/sync.mjs",
     "validate:infra": "aws --profile agent-dev cloudformation validate-template --template-body file://infra/template.yaml",
     "deploy": "bash scripts/deploy.sh"
   }

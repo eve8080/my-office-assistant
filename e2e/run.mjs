@@ -14,6 +14,7 @@ await page.evaluate(() => localStorage.clear());
 await page.reload({ waitUntil: 'networkidle' });
 
 assert.equal(await page.title(), 'My Office Assistant');
+assert.match(await page.locator('.sidebar-footer p').innerText(), /Encrypted S3 sync/);
 assert.equal(await page.locator('.note-card').count(), 1);
 assert.equal(await page.locator('#note-title').inputValue(), 'Welcome');
 

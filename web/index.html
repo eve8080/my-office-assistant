@@ -42,7 +42,7 @@
           Import
           <input id="import-notes" type="file" accept="application/json,.json" hidden>
         </label>
-        <p>Notes are stored only in this browser.</p>
+        <p>Encrypted S3 sync is available with your passphrase.</p>
       </div>
     </aside>
 
@@ -50,6 +50,7 @@
       <header class="topbar">
         <button class="icon-button mobile-only" id="open-sidebar" aria-label="Open notes panel">☰</button>
         <div class="save-state" id="save-state"><span class="status-dot"></span> Saved locally</div>
+        <button class="sync-button" id="sync-button" type="button">Enable sync</button>
         <button class="danger-button" id="delete-note" type="button">Delete</button>
       </header>
 
@@ -70,6 +71,28 @@
       </section>
     </main>
   </div>
+
+  <dialog class="sync-dialog" id="sync-dialog">
+    <form method="dialog" id="sync-form">
+      <div class="dialog-icon" aria-hidden="true">↻</div>
+      <h2>Encrypted cloud sync</h2>
+      <p>Enter the same passphrase on every computer. Your notes are encrypted in this browser before being saved to S3. The passphrase is never sent to AWS.</p>
+      <label>
+        Sync passphrase
+        <input id="sync-passphrase" type="password" minlength="12" autocomplete="new-password" required>
+      </label>
+      <label>
+        Confirm passphrase
+        <input id="sync-confirm" type="password" minlength="12" autocomplete="new-password" required>
+      </label>
+      <div class="sync-warning">There is no password recovery. Keep the passphrase somewhere safe.</div>
+      <div class="dialog-error" id="sync-error" role="alert"></div>
+      <div class="dialog-actions">
+        <button class="text-action" id="sync-cancel" value="cancel" type="button">Cancel</button>
+        <button class="primary-button compact" id="sync-submit" type="submit">Enable and sync</button>
+      </div>
+    </form>
+  </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app.js"></script>

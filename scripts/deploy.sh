@@ -21,6 +21,9 @@ aws --profile "$PROFILE" --region "$REGION" cloudformation deploy \
 BUCKET_NAME="$(aws --profile "$PROFILE" --region "$REGION" cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='BucketName'].OutputValue" --output text)"
+NOTES_BUCKET_NAME="$(aws --profile "$PROFILE" --region "$REGION" cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --query "Stacks[0].Outputs[?OutputKey=='NotesBucketName'].OutputValue" --output text)"
 DISTRIBUTION_ID="$(aws --profile "$PROFILE" --region "$REGION" cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --query "Stacks[0].Outputs[?OutputKey=='DistributionId'].OutputValue" --output text)"
@@ -44,18 +47,9 @@ aws --profile "$PROFILE" cloudfront wait invalidation-completed \
   --distribution-id "$DISTRIBUTION_ID" \
   --id "$INVALIDATION_ID"
 
-cat > "$OUTPUT_FILE" <<JSON
-{
-  "profile": "$PROFILE",
-  "region": "$REGION",
-  "stack_name": "$STACK_NAME",
-  "bucket_name": "$BUCKET_NAME",
-  "distribution_id": "$DISTRIBUTION_ID",
-  "invalidation_id": "$INVALIDATION_ID",
-  "domain_name": "$DOMAIN_NAME",
-  "url": "https://$DOMAIN_NAME"
-}
-JSON
+printf '{\n  "profile": "%s",\n  "region": "%s",\n  "stack_name": "%s",\n  "bucket_name": "%s",\n  "notes_bucket_name": "%s",\n  "distribution_id": "%s",\n  "invalidation_id": "%s",\n  "domain_name": "%s",\n  "url": "https://%s"\n}\n' \
+  "$PROFILE" "$REGION" "$STACK_NAME" "$BUCKET_NAME" "$NOTES_BUCKET_NAME" \
+  "$DISTRIBUTION_ID" "$INVALIDATION_ID" "$DOMAIN_NAME" "$DOMAIN_NAME" > "$OUTPUT_FILE"
 
-printf 'url=https://%s\ndistribution_id=%s\ninvalidation_id=%s\n' \
-  "$DOMAIN_NAME" "$DISTRIBUTION_ID" "$INVALIDATION_ID"
+printf 'url=https://%s\nnotes_bucket=%s\ndistribution_id=%s\ninvalidation_id=%s\n' \
+  "$DOMAIN_NAME" "$NOTES_BUCKET_NAME" "$DISTRIBUTION_ID" "$INVALIDATION_ID"

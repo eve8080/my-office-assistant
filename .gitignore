@@ -1,5 +1,6 @@
 node_modules/
 .DS_Store
 .aws-output.json
+.build/
 artifacts/
 *.log

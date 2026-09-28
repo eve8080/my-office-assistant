@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: My Office Assistant static web application on private S3 behind CloudFront.
+Description: My Office Assistant with private static hosting and client-encrypted S3 note synchronization behind CloudFront.
 
 Resources:
   SiteBucket:
@@ -25,22 +25,106 @@ Resources:
         - Key: Application
           Value: My Office Assistant
 
+  NotesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldNotebookVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Application
+          Value: My Office Assistant
+        - Key: DataClassification
+          Value: ClientEncryptedNotes
+
   SiteOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub '${AWS::StackName}-oac'
+        Name: !Sub '${AWS::StackName}-site-oac'
         Description: Signed CloudFront access to the private application bucket.
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
+
+  NotesOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-notes-oac'
+        Description: Signed CloudFront read and write access to encrypted notebook objects.
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  NotesOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub '${AWS::StackName}-notes-origin-request'
+        Comment: Forward the encrypted object content type to S3.
+        CookiesConfig:
+          CookieBehavior: none
+        HeadersConfig:
+          HeaderBehavior: whitelist
+          Headers:
+            - Content-Type
+        QueryStringsConfig:
+          QueryStringBehavior: none
+
+  NotesRequestValidator:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-notes-request-validator'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Restrict S3 synchronization to fixed encrypted notebook object paths and methods.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var notebookPath = new RegExp('^/sync/notebooks/[a-f0-9]{64}\\.json$');
+          var allowed = ['GET', 'HEAD', 'OPTIONS', 'PUT'];
+          if (!notebookPath.test(request.uri)) {
+            return { statusCode: 400, statusDescription: 'Bad Request' };
+          }
+          if (allowed.indexOf(request.method) === -1) {
+            return { statusCode: 405, statusDescription: 'Method Not Allowed' };
+          }
+          if (request.method === 'PUT') {
+            var length = request.headers['content-length'];
+            if (length && parseInt(length.value, 10) > 786432) {
+              return { statusCode: 413, statusDescription: 'Payload Too Large' };
+            }
+          }
+          return request;
+        }
 
   SiteResponseHeadersPolicy:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
         Name: !Sub '${AWS::StackName}-security-headers'
-        Comment: Security headers for the browser-only note application.
+        Comment: Security headers for the encrypted note application.
         SecurityHeadersConfig:
           ContentSecurityPolicy:
             ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
@@ -73,27 +157,35 @@ Resources:
         IPV6Enabled: true
         PriceClass: PriceClass_100
         Origins:
-          - Id: private-s3-origin
+          - Id: private-site-s3-origin
             DomainName: !GetAtt SiteBucket.RegionalDomainName
             OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
             S3OriginConfig: {}
+          - Id: private-notes-s3-origin
+            DomainName: !GetAtt NotesBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt NotesOriginAccessControl.Id
+            S3OriginConfig: {}
         DefaultCacheBehavior:
-          TargetOriginId: private-s3-origin
+          TargetOriginId: private-site-s3-origin
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD, OPTIONS]
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           ResponseHeadersPolicyId: !Ref SiteResponseHeadersPolicy
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
+        CacheBehaviors:
+          - PathPattern: /sync/*
+            TargetOriginId: private-notes-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            Compress: false
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: !Ref NotesOriginRequestPolicy
+            ResponseHeadersPolicyId: !Ref SiteResponseHeadersPolicy
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt NotesRequestValidator.FunctionARN
       Tags:
         - Key: Application
           Value: My Office Assistant
@@ -115,10 +207,32 @@ Resources:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
 
+  NotesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref NotesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontEncryptedNotebookAccess
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+            Resource: !Sub '${NotesBucket.Arn}/sync/notebooks/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+
 Outputs:
   BucketName:
-    Description: Private S3 deployment bucket.
+    Description: Private static application bucket.
     Value: !Ref SiteBucket
+  NotesBucketName:
+    Description: Private S3 bucket containing only client-encrypted notebook payloads.
+    Value: !Ref NotesBucket
   DistributionId:
     Description: CloudFront distribution identifier.
     Value: !Ref SiteDistribution
