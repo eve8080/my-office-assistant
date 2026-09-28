@@ -18,7 +18,7 @@
           <div class="brand-name">My Office Assistant</div>
           <div class="brand-subtitle">Private browser notebook</div>
         </div>
-        <button class="icon-button mobile-only" id="close-sidebar" aria-label="Close notes panel">×</button>
+        <button class="icon-button mobile-only" id="close-sidebar" type="button" aria-label="Close notes panel" aria-controls="sidebar">×</button>
       </div>
 
       <button class="primary-button" id="new-note" type="button">
@@ -27,7 +27,7 @@
 
       <label class="search-box">
         <span aria-hidden="true">⌕</span>
-        <input id="search" type="search" placeholder="Search notes" autocomplete="off">
+        <input id="search" type="search" placeholder="Search notes" autocomplete="off" aria-label="Search notes">
       </label>
 
       <div class="section-label">
@@ -38,21 +38,27 @@
 
       <div class="sidebar-footer">
         <button class="text-button" id="export-notes" type="button">Export</button>
-        <label class="text-button import-button">
-          Import
-          <input id="import-notes" type="file" accept="application/json,.json" hidden>
-        </label>
+        <button class="text-button import-button" id="import-button" type="button" aria-label="Import notes from a JSON file">Import</button>
+        <input id="import-notes" type="file" accept="application/json,.json" tabindex="-1" aria-label="Import notes from a JSON file" hidden>
         <p>Encrypted S3 sync is available with your passphrase.</p>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
-        <button class="icon-button mobile-only" id="open-sidebar" aria-label="Open notes panel">☰</button>
+        <button class="icon-button mobile-only" id="open-sidebar" type="button" aria-label="Open notes panel" aria-controls="sidebar" aria-expanded="false">☰</button>
         <div class="save-state" id="save-state"><span class="status-dot"></span> Saved locally</div>
         <button class="sync-button" id="sync-button" type="button">Enable sync</button>
-        <button class="danger-button" id="delete-note" type="button">Delete</button>
+        <button class="danger-button" id="delete-note" type="button" aria-label="Delete note">Delete</button>
       </header>
+
+      <div class="conflict-notice" id="conflict-notice" role="alert" hidden>
+        <p id="conflict-message"></p>
+        <div class="conflict-actions">
+          <button class="text-action" id="conflict-open" type="button">Open copy</button>
+          <button class="text-action" id="conflict-dismiss" type="button">Dismiss</button>
+        </div>
+      </div>
 
       <section class="editor-wrap" id="editor-wrap">
         <div class="editor-meta">

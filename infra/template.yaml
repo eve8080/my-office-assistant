@@ -81,13 +81,15 @@ Resources:
     Properties:
       OriginRequestPolicyConfig:
         Name: !Sub '${AWS::StackName}-notes-origin-request'
-        Comment: Forward the encrypted object content type to S3.
+        Comment: Forward the encrypted object content type and conditional-write headers to S3.
         CookiesConfig:
           CookieBehavior: none
         HeadersConfig:
           HeaderBehavior: whitelist
           Headers:
             - Content-Type
+            - If-Match
+            - If-None-Match
         QueryStringsConfig:
           QueryStringBehavior: none
 
@@ -97,7 +99,7 @@ Resources:
       Name: !Sub '${AWS::StackName}-notes-request-validator'
       AutoPublish: true
       FunctionConfig:
-        Comment: Restrict S3 synchronization to fixed encrypted notebook object paths and methods.
+        Comment: Restrict S3 synchronization to fixed JSON notebook object paths, methods, sizes and content type.
         Runtime: cloudfront-js-2.0
       FunctionCode: |
         function handler(event) {
@@ -108,12 +110,21 @@ Resources:
             return { statusCode: 400, statusDescription: 'Bad Request' };
           }
           if (allowed.indexOf(request.method) === -1) {
-            return { statusCode: 405, statusDescription: 'Method Not Allowed' };
+            return {
+              statusCode: 405,
+              statusDescription: 'Method Not Allowed',
+              headers: { allow: { value: 'GET, HEAD, OPTIONS, PUT' } }
+            };
           }
           if (request.method === 'PUT') {
             var length = request.headers['content-length'];
             if (length && parseInt(length.value, 10) > 786432) {
               return { statusCode: 413, statusDescription: 'Payload Too Large' };
+            }
+            var contentType = request.headers['content-type'];
+            var multiple = contentType && contentType.multiValue && contentType.multiValue.length > 1;
+            if (!contentType || multiple || String(contentType.value).trim().toLowerCase() !== 'application/json') {
+              return { statusCode: 415, statusDescription: 'Unsupported Media Type' };
             }
           }
           return request;
@@ -146,6 +157,34 @@ Resources:
             Protection: true
             Override: true
 
+  NotesResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${AWS::StackName}-notes-security-headers'
+        Comment: Inert, non-cacheable responses for encrypted notebook objects under /sync/*.
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'; sandbox"
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: no-referrer
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Cache-Control
+              Value: no-store, max-age=0
+              Override: true
+
   SiteDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -177,12 +216,17 @@ Resources:
           - PathPattern: /sync/*
             TargetOriginId: private-notes-s3-origin
             ViewerProtocolPolicy: redirect-to-https
+            # CloudFront only accepts three AllowedMethods sets, and PUT is only available in
+            # the full set. POST, PATCH and DELETE are rejected with 405 by the viewer-request
+            # NotesRequestValidator before any origin request, and the notes bucket policy
+            # grants only s3:GetObject and s3:PutObject.
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
-            CachedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
             Compress: false
+            # Managed CachingDisabled policy.
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
             OriginRequestPolicyId: !Ref NotesOriginRequestPolicy
-            ResponseHeadersPolicyId: !Ref SiteResponseHeadersPolicy
+            ResponseHeadersPolicyId: !Ref NotesResponseHeadersPolicy
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt NotesRequestValidator.FunctionARN
@@ -222,6 +266,23 @@ Resources:
               - s3:GetObject
               - s3:PutObject
             Resource: !Sub '${NotesBucket.Arn}/sync/notebooks/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+          # S3 returns 403 instead of 404 for a missing object unless the caller also has
+          # s3:ListBucket. This grant lets a notebook that does not exist yet read as 404,
+          # so 403 keeps meaning a real access problem. It cannot be used to enumerate
+          # notebooks: the viewer-request NotesRequestValidator only accepts
+          # /sync/notebooks/<64 hex>.json, and NotesOriginRequestPolicy forwards no query
+          # strings, so no list request can be issued through CloudFront. No s3:prefix
+          # condition is used because S3 evaluates this permission for GetObject requests,
+          # where that key does not exist.
+          - Sid: AllowCloudFrontNotebookExistenceCheck
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:ListBucket
+            Resource: !GetAtt NotesBucket.Arn
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'

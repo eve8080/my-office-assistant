@@ -1,0 +1,10 @@
+{
+  "locator": "8e0135a6668a8250ba8fd49daee6b51e0cdc4bf7086969c39b1f89e818b2d2b2",
+  "envelope": {
+    "version": 1,
+    "salt": "4uPnPA1xzvRY6Bj3iGz+AQ==",
+    "iv": "V2H/sERn1q3nnN2C",
+    "ciphertext": "nzT3Vc/jdWL4G+55pfEaCXHwir5TJGpgc//Vzuj1UPE9F0pvmVUAuEVTetLnuji3/zyMLtMRDqL6xxKreKHIhSzE/dZ72kUUufaSQCCjcCK3Fjsf7Hr8oDoR3jWi92+6869qXw0hD5WZSQoGK6peP69IyZLT5VzG9WIzPn0G27vTG00iL1s6YrMDLvVQTckiMat4rDhjLZCo7VTxOak9ZM858og7z+/mpqf0tmH30KA3RizAhSy0UNfPDr2x2aCmUntDBiM5Ndk4ydMUJwEyn/A4uKR8yeS4PsIAGZTVH2shZC2XwfLuowu+/tCZ+sdPeiEkhSa4j4zL+ArHdlcQpxLz",
+    "updatedAt": "2026-09-28T05:28:34.608Z"
+  }
+}

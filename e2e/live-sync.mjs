@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 
+// Writes to a real deployment, so the target must be named explicitly. The notebook
+// locator is a capability for the stored object and is never computed or printed here.
+const baseUrl = process.env.APP_URL;
+if (!baseUrl) {
+  console.error('APP_URL is required, e.g. APP_URL=https://<distribution>.cloudfront.net node e2e/live-sync.mjs');
+  process.exit(2);
+}
 const require = createRequire(import.meta.url);
 const { chromium } = require(`${process.env.HOME}/.hermes/hermes-agent/node_modules/playwright`);
-const baseUrl = process.env.APP_URL || 'https://dxwxnajdv6k2s.cloudfront.net';
 const runId = randomUUID();
 const passphrase = `live sync verification ${runId}`;
 const title = `Cloud sync verification ${runId.slice(0, 8)}`;
-const locator = createHash('sha256').update(`my-office-assistant-sync-v1:${passphrase}`).digest('hex');
 
 async function enableSync(page) {
   await page.locator('#sync-button').click();
@@ -66,4 +71,4 @@ assert.match(await first.locator('.sidebar-footer p').innerText(), /Encrypted S3
 const screenshot = '/Users/eveso/Projects/My office assistant/artifacts/app-cloudfront-sync.png';
 await first.screenshot({ path: screenshot, fullPage: true });
 await browser.close();
-console.log(JSON.stringify({ ok: true, baseUrl, locator, title, screenshot }));
+console.log(JSON.stringify({ ok: true, baseUrl, screenshot }));

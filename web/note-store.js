@@ -10,11 +10,28 @@ function isValidNote(note) {
   );
 }
 
+// Missing, empty or unparseable timestamps sort as older than every valid timestamp.
+export function timestampValue(value) {
+  if (typeof value !== 'string' || !value.trim()) return Number.NEGATIVE_INFINITY;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
+}
+
+export function compareTimestamps(a, b) {
+  const left = timestampValue(a);
+  const right = timestampValue(b);
+  if (left === right) return 0;
+  return left > right ? 1 : -1;
+}
+
+// A timestamp for a new version that is always later than the version it replaces,
+// even when that version came from a device whose clock runs ahead.
+export function nextTimestamp(previous, now = Date.now()) {
+  return new Date(Math.max(now, timestampValue(previous) + 1)).toISOString();
+}
+
 function sortNewest(notes) {
-  return [...notes].sort((a, b) => {
-    const byUpdated = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
-    return byUpdated || a.id.localeCompare(b.id);
-  });
+  return [...notes].sort((a, b) => compareTimestamps(b.updatedAt, a.updatedAt) || a.id.localeCompare(b.id));
 }
 
 export function createNote({ id = crypto.randomUUID(), now = new Date().toISOString() } = {}) {

@@ -7,6 +7,13 @@
     "test": "node --test",
     "test:e2e": "node e2e/run.mjs",
     "test:sync": "node e2e/sync.mjs",
+    "test:typing": "node e2e/typing-sync.mjs",
+    "test:cross-tab": "node e2e/cross-tab.mjs",
+    "test:conflict": "node e2e/conflict-retry.mjs",
+    "test:guards": "node e2e/sync-guards.mjs",
+    "test:mobile": "node e2e/mobile-a11y.mjs",
+    "test:browser": "node e2e/run.mjs && node e2e/sync.mjs && node e2e/typing-sync.mjs && node e2e/cross-tab.mjs && node e2e/conflict-retry.mjs && node e2e/sync-guards.mjs && node e2e/mobile-a11y.mjs",
+    "test:live": "node e2e/live-sync.mjs",
     "validate:infra": "aws --profile agent-dev cloudformation validate-template --template-body file://infra/template.yaml",
     "deploy": "bash scripts/deploy.sh"
   }

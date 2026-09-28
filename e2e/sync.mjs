@@ -7,7 +7,10 @@ const { chromium } = require(`${process.env.HOME}/.hermes/hermes-agent/node_modu
 const baseUrl = process.env.APP_URL || 'http://127.0.0.1:4173';
 const passphrase = 'a long private sync phrase';
 let encryptedNotebook = null;
+let notebookEtag = null;
+let etagVersion = 0;
 let putCount = 0;
+const putLog = [];
 
 async function installApi(context) {
   await context.route('**/sync/notebooks/*.json', async (route) => {
@@ -15,7 +18,12 @@ async function installApi(context) {
       if (!encryptedNotebook) {
         await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) });
       } else {
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(encryptedNotebook) });
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { ETag: notebookEtag },
+          body: JSON.stringify(encryptedNotebook),
+        });
       }
       return;
     }
@@ -23,9 +31,21 @@ async function installApi(context) {
       const rawBody = route.request().postData() || '';
       const expectedHash = createHash('sha256').update(rawBody).digest('hex');
       assert.equal(route.request().headers()['x-amz-content-sha256'], expectedHash);
+      const ifMatch = route.request().headers()['if-match'];
+      const ifNoneMatch = route.request().headers()['if-none-match'];
+      const existed = Boolean(encryptedNotebook);
+      // S3 conditional-write semantics.
+      const rejected = (ifNoneMatch === '*' && existed) || (ifMatch !== undefined && ifMatch !== notebookEtag);
+      putLog.push({ existed, ifMatch, ifNoneMatch, status: rejected ? 412 : 200 });
+      if (rejected) {
+        await route.fulfill({ status: 412, contentType: 'application/xml', body: '<Error><Code>PreconditionFailed</Code></Error>' });
+        return;
+      }
       encryptedNotebook = route.request().postDataJSON();
+      etagVersion += 1;
+      notebookEtag = `"sync-mock-${etagVersion}"`;
       putCount += 1;
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+      await route.fulfill({ status: 200, headers: { ETag: notebookEtag }, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
       return;
     }
     await route.fulfill({ status: 405, body: 'method_not_allowed' });
@@ -85,6 +105,17 @@ await first.locator('#search').fill('Shared planning');
 await first.locator('.note-card').click();
 assert.equal(await first.locator('#note-content').inputValue(), 'Updated on computer two.');
 assert.match(await first.locator('#save-state').innerText(), /Synced/);
+assert.doesNotMatch(await first.locator('#save-state').innerText(), /no version check/);
+
+// Every write was conditional: the first created the notebook with If-None-Match: *, and
+// every write after an existing notebook was read carried If-Match with its ETag.
+assert.ok(putLog.length >= 3, `expected several writes, saw ${putLog.length}`);
+assert.equal(putLog[0].ifNoneMatch, '*');
+for (const entry of putLog.filter((item) => item.existed)) {
+  assert.ok(entry.ifMatch, 'a write to an existing notebook carries If-Match');
+}
+assert.ok(putLog.some((entry) => entry.existed && entry.ifMatch && entry.status === 200));
+assert.ok(putLog.every((entry) => entry.ifMatch || entry.ifNoneMatch), 'no unconditional write');
 
 await browser.close();
 console.log(JSON.stringify({ ok: true, encrypted: true, twoComputerSync: true, baseUrl }));
