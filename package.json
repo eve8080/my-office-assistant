@@ -1,0 +1,12 @@
+{
+  "name": "my-office-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "test:e2e": "node e2e/run.mjs",
+    "validate:infra": "aws --profile agent-dev cloudformation validate-template --template-body file://infra/template.yaml",
+    "deploy": "bash scripts/deploy.sh"
+  }
+}

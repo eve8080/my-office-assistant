@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f6f3">
+  <meta name="description" content="A private, browser-based office notebook.">
+  <title>My Office Assistant</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">M</div>
+        <div>
+          <div class="brand-name">My Office Assistant</div>
+          <div class="brand-subtitle">Private browser notebook</div>
+        </div>
+        <button class="icon-button mobile-only" id="close-sidebar" aria-label="Close notes panel">×</button>
+      </div>
+
+      <button class="primary-button" id="new-note" type="button">
+        <span aria-hidden="true">＋</span> New note
+      </button>
+
+      <label class="search-box">
+        <span aria-hidden="true">⌕</span>
+        <input id="search" type="search" placeholder="Search notes" autocomplete="off">
+      </label>
+
+      <div class="section-label">
+        <span>Notes</span>
+        <span id="note-count">0</span>
+      </div>
+      <nav class="note-list" id="note-list" aria-label="Notes"></nav>
+
+      <div class="sidebar-footer">
+        <button class="text-button" id="export-notes" type="button">Export</button>
+        <label class="text-button import-button">
+          Import
+          <input id="import-notes" type="file" accept="application/json,.json" hidden>
+        </label>
+        <p>Notes are stored only in this browser.</p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <button class="icon-button mobile-only" id="open-sidebar" aria-label="Open notes panel">☰</button>
+        <div class="save-state" id="save-state"><span class="status-dot"></span> Saved locally</div>
+        <button class="danger-button" id="delete-note" type="button">Delete</button>
+      </header>
+
+      <section class="editor-wrap" id="editor-wrap">
+        <div class="editor-meta">
+          <span id="updated-time">New note</span>
+          <span id="word-count">0 words</span>
+        </div>
+        <input class="title-input" id="note-title" type="text" placeholder="Untitled" maxlength="180" aria-label="Note title">
+        <textarea class="content-input" id="note-content" placeholder="Start writing…" aria-label="Note content"></textarea>
+      </section>
+
+      <section class="empty-state" id="empty-state" hidden>
+        <div class="empty-icon" aria-hidden="true">✎</div>
+        <h1>No note selected</h1>
+        <p>Create a note to start capturing ideas, meeting points and follow-ups.</p>
+        <button class="primary-button compact" id="empty-new-note" type="button">Create a note</button>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
